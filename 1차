@@ -1,0 +1,536 @@
+#include "function.h"
+#define LEVEL 2 //레벨
+#define LIMIT_ITEM 7 //최대 아이템 수 5 / 7 / 9
+#define ESCAPE_TOOL 3 //탈출하는데 필요한 탈영도구 수 2 / 3 / 4
+#define TIME_LIMIT 50 //제한시간: 레벨에 따라 결정 30 / 25 / 20
+#define SUSPIC_LIMIT 5 //의심도 한계: 이를 초과할 시 게임 오버, 레벨에 따라 결정 3 / 2 / 1
+#define SENIOR 5 //선임 수: 레벨에 따라 결정 2 / 3 / 4
+#define DP 2 //DP 수
+//\033[1;32mD\033[0m
+//////////////////////////////////////////////1234
+int dpClear = 0;
+typedef struct {
+        int x;
+        int y;
+    }Chaser;//추격자 구조체
+Chaser chaser1, chaser2;//이미 DP가 있어서 그냥 추격자로 새로 만들었어2명 생성
+int position_x, position_y; //game.h에서 아이템이나 탈영도구의 위치 얻음.
+void updateChaserPosition(Chaser* chaser, int x, int y) {
+    //if (time(0) >= s_time + 1) // 1초마다 추격자 움직임 갱신
+    {
+        gotoxy(chaser1.x, chaser1.y);
+        printf(" ");
+
+        if (chaser1.x < x) 
+            chaser1.x++;
+        else if (chaser1.x > x) 
+            chaser1.x--;
+
+        if (chaser1.y < y) 
+            chaser1.y++;
+        else if (chaser1.y > y) 
+            chaser1.y--;
+
+        gotoxy(chaser1.x, chaser1.y);
+        printf("\033[1;32mD\033[0m");
+
+        gotoxy(chaser2.x, chaser2.y);
+        printf(" ");
+
+        if (chaser2.x < x && (chaser2.x + 1 != chaser1.x || chaser2.y != chaser1.y)) //DP 겹치기 방지 포함
+                chaser2.x++;
+        else if (chaser2.x > x && (chaser2.x - 1 != chaser1.x || chaser2.y != chaser1.y)) 
+                chaser2.x--;
+
+        if (chaser2.y < y && (chaser2.y + 1 != chaser1.y || chaser2.x != chaser1.x)) 
+                chaser2.y++;
+        else if (chaser2.y > y && (chaser2.y - 1 != chaser1.y || chaser2.x != chaser1.x))
+                chaser2.y--;
+
+        if (chaser1.x == chaser2.x && chaser1.y == chaser2.y)
+            chaser2.x++;
+   
+        if (dpClear == 0){
+            gotoxy(chaser2.x, chaser2.y);
+            printf("\033[1;32mD\033[0m");
+        }
+
+        //s_time = time(0);
+    }
+    if (x == chaser1.x && y == chaser1.y || (x == chaser2.x && y == chaser2.y && dpClear == 0)) {
+        game_over();
+    }
+}
+
+int item_event_level3(int i, int* suspic_score, int* game_time, int* move_count) //레벨 1에서는 탈영도구 2개 //탈영도구의 개수를 정해야 하기 때문에 레벨 마다 따로따로 만듦 //의심도 값의 변화를 주기위해 포인터로 값 전달
+{
+    system("cls");
+    switch (i)
+    {
+    case 1:
+        dpClear = 1;
+        printf("DP 한명 없애기!!");
+        Sleep(1000);
+        return 1;
+        break;
+    case 2:
+    case 3:
+        item_event(suspic_score, game_time, move_count);
+        return 0;
+        break;
+    case 4:
+    case 5:
+        return 1; //탈영도구 +1 
+        break;
+    default:
+        break;
+    }
+    system("cls");
+    return 0;
+}
+
+
+
+void game_background3(int a, int b, int item_save[][2]) {
+    int i, j;
+    int map[B_X * LEVEL][B_Y * LEVEL] = { {0} };
+    int count = 0;
+
+    // 외곽 벽 생성
+    gotoxy(0, 0);
+    printf("┏");
+    for (i = 0; i < a; i++) printf("━");
+    printf("┓\n");
+
+    for (i = 0; i < b; i++) {
+        printf("┃");
+        for (j = 0; j < a; j++) 
+            printf(" ");
+        printf("┃\n");
+    }
+
+    printf("┗");
+    for (i = 0; i < a; i++) printf("━");
+    printf("┛\n");
+    gotoxy(B_X * LEVEL + 10, 3);
+    
+
+    // 아이템을 맵에 저장
+    for (i = 0; i < LIMIT_ITEM; i++) {
+        map[item_save[i][0]][item_save[i][1]] = 1;
+    }
+    for (int i = 1; i < B_X * LEVEL+2; i++) {
+        for (j = 1; j < B_Y * LEVEL+2; j++) {
+            printf("%d", map[i][j]);
+        }
+        gotoxy(B_X * LEVEL + 10, 4 + i);
+    }
+    /*
+    // 내부 벽 생성
+    // 가로로 4칸 이상 비어있는 경우 벽 생성
+    for (i = 0; i < b; i++) {
+        count = 0;
+        for (j = 0; j < a; j++) {
+            if (map[i][j] == 0) {
+                count++;
+            }
+            else {
+                if (count >= 4) {
+                    for (int k = 0; k < count; k++) {
+                        map[i][j - k - 1] = 1;
+                        gotoxy(j - k - 1, i);
+                        printf("ㅁ");
+                    }
+                }
+                count = 0;
+            }
+        }
+        if (count >= 4) {
+            for (int k = 0; k < count; k++) {
+                map[i][j - k - 1] = 1;
+                gotoxy(j - k - 1, i);
+                printf("ㅁ");
+            }
+        }
+    }
+
+    // 세로로 4칸 이상 비어있는 경우 벽 생성
+    for (j = 0; j < a; j++) {
+        count = 0;
+        for (i = 0; i < b; i++) {
+            if (map[i][j] == 0) {
+                count++;
+            }
+            else {
+                if (count >= 4) {
+                    for (int k = 0; k < count; k++) {
+                        map[i - k - 1][j] = 1;
+                        gotoxy(j, i - k - 1);
+                        printf("ㅁ");
+                    }
+                }
+                count = 0;
+            }
+        }
+        if (count >= 4) {
+            for (int k = 0; k < count; k++) {
+                map[i - k - 1][j] = 1;
+                gotoxy(j, i - k - 1);
+                printf("ㅁ");
+            }
+        }
+    }*/
+}
+////////////////////////////////////////////////
+
+
+void game3(void){
+    ///////////////////////////////////1234
+    
+    chaser1.x = B_X * LEVEL - 2;
+    chaser1.y = 2;//추격자1 시작위치
+
+    chaser2.x = 2;
+    chaser2.y = 2;//추격자2 시작위치
+    /////////////////////////////////////
+    system("cls");
+
+    int ch, item = 0;
+    int i, j, k, re, j_go = 0;
+
+
+    int item_save[LIMIT_ITEM + 1][2] = { 0 }; // 0번째 칸은 버림. 0~LIMIT_ITEM 까지므로 LIMIT_ITEM + 1
+    int senior_save[SENIOR + 1][2] = { 0 }; // 0번째 칸은 버림. 0~SENIOR 까지므로 SENIOR + 1
+
+    int suspic_score = 0; // 의심도
+    int score = 0; // 점수
+    int escape_tool = 0; // 탈영도구 수
+    int how_time;
+    int move_count = 500;//100 // 이동 횟수 제한
+    int immune_start_time = 0; // 면역 상태 시작 시간
+    int immune_duration = 5;   // 면역 상태 지속 시간 (초)
+
+    gotoxy(1, 1);
+
+    game_background3(B_X * LEVEL, B_Y * LEVEL,item_save); // 게임 배경 생성
+
+    int x = 4, y = B_Y * LEVEL - 3; // 처음 플레이어 위치
+
+    gotoxy(x, y);
+    printf("\033[1;31m♥\033[0m");
+    /////////////////////////////////////////////////////1234
+    gotoxy(chaser1.x, chaser1.y);
+    printf("\033[1;32mD\033[0m");//추격자 생성
+
+    gotoxy(chaser2.x, chaser2.y);
+    printf("\033[1;32mD\033[0m");
+    /////////////////////////////////////////////////////
+    for (i = 1; i <= LIMIT_ITEM; i++) // LIMIT_ITEM 개수 만큼 맵에 아이템 생성
+    {
+        item += 1;
+        item_set(&x, &y, LEVEL, LIMIT_ITEM, item_save, LIMIT_ITEM + 1);
+        item_save[i][0] = position_x; // 각 아이템 별 위치 저장.
+        item_save[i][1] = position_y;
+        gotoxy(x, y);
+    }
+
+    for (i = 1; i <= SENIOR; i++) // SENIOR 수 만큼 맵에 선임 생성
+    {
+        senior_set(&x, &y, LEVEL, LIMIT_ITEM, SENIOR, item_save, LIMIT_ITEM + 1, senior_save, SENIOR + 1);
+        senior_save[i][0] = position_x; // 각 선임 별 위치 저장.
+        senior_save[i][1] = position_y;
+        gotoxy(x, y);
+    }
+
+    int game_time = TIME_LIMIT;
+
+    gotoxy(B_X * LEVEL + 4, 2);
+    printf("점수 : %d", TIME_LIMIT * (SUSPIC_LIMIT + 1) * 100 - 100 * (TIME_LIMIT - game_time) * (suspic_score + 1));
+    gotoxy(B_X * LEVEL + 4, 4);
+    printf("제한시간 : %d초 / %d초", game_time, TIME_LIMIT);
+    gotoxy(B_X * LEVEL + 4, 6);
+    printf("\033[1;35m의심도\033[0m : %d", suspic_score);
+    gotoxy(B_X * LEVEL + 4, 8);
+    printf("\033[1;35m탈영도구\033[0m : %d / %d", escape_tool, ESCAPE_TOOL);
+    gotoxy(B_X * LEVEL + 4, 10);
+    printf("남은 이동 횟수 : %3d", move_count); // 이동 횟수 표시
+
+
+    gotoxy(x, y);
+
+    int s_time = time(0);
+    double senior_ready_time = time(0);
+    double senior_move_time;
+    clock_t start_clock = clock() + 100;
+
+    while (1) // 실행시 끝날때까지 무한반복
+    {
+        if (_kbhit())
+        {
+            ch = _getch();
+            if (ch == 224)
+            {
+                kb_move(&x, &y, ch = _getch(), LEVEL); // 플레이어 이동
+                move_count--; // 이동 횟수 감소
+                if (move_count <= 0)
+                {
+                    game_over(); // 이동 횟수가 0이 되면 게임 오버
+                    break;
+                }
+            }
+            gotoxy(x, y);
+            if (is_immune(&immune_start_time, &immune_duration)) {
+                printf("\033[1;34m♥\033[0m"); // 파란색
+            }
+            else {
+                printf("\033[1;31m♥\033[0m"); // 빨간색
+            }
+
+            gotoxy(B_X * LEVEL + 4, 10);
+            printf("남은 이동 횟수 : %3d", move_count); // 남은 이동 횟수 갱신
+        }
+
+        for (i = 1; i <= LIMIT_ITEM; i++)
+        {
+            if (x == item_save[i][0] && y == item_save[i][1]) // item에 닿을시
+            {
+                item_save[i][0] = 0; // 닿은 아이템의 위치는 초기화
+                item_save[i][1] = 0;
+                int event_result = item_event_level3(i, &suspic_score, &game_time, &move_count); // i번째 아이템 이벤트 발동 (탈영 도구 OR 기타 아이템)
+                if (event_result == 1) {
+                    escape_tool++;
+                }
+                else if (event_result == 2) {
+                    immune_start_time = time(NULL); // 면역 상태 시작 시간 설정
+                }
+
+                // system("cls") 후 다시 그리기
+                system("cls");
+
+                if (suspic_score >= SUSPIC_LIMIT)
+                {
+                    game_over();
+                    break;
+                }
+
+                game_background3(B_X * LEVEL, B_Y * LEVEL, item_save);
+
+                for (k = 1; k <= LIMIT_ITEM; k++)
+                {
+                    if (item_save[k][0] != 0)
+                    {
+                        gotoxy(item_save[k][0], item_save[k][1]);
+                        printf("▲");
+                    }
+                }
+
+                for (k = 1; k <= SENIOR; k++)
+                {
+                    if (senior_save[k][0] != 0)
+                    {
+                        gotoxy(senior_save[k][0], senior_save[k][1]);
+
+                        if (j_go == 0)
+                            printf("◆");
+                        else
+                            printf("\033[1;32m◆\033[0m");
+
+                    }
+                }
+                gotoxy(x, y);
+                if (is_immune(&immune_start_time, &immune_duration)) {
+                    printf("\033[1;34m♥\033[0m"); // 파란색
+                }
+                else {
+                    printf("\033[1;31m♥\033[0m"); // 빨간색
+                }
+            }
+
+        }
+
+        for (i = 1; i <= SENIOR; i++)
+        {
+            if (x == senior_save[i][0] && y == senior_save[i][1]) // senior에 닿을시
+            {
+                senior_save[i][0] = 0; // 닿은 선임의 위치는 초기화
+                senior_save[i][1] = 0;
+
+                if (is_immune(&immune_start_time, &immune_duration)) {
+                    immune_start_time = 0; // 선임과 닿으면 면역 상태 종료
+                }
+                else { // 무적 상태가 아니면
+                    suspic_score += 1; // 의심도 증가
+
+                    if (suspic_score >= SUSPIC_LIMIT) {
+                        game_over();
+                        break;
+                    }
+
+                    senior_event(); // 선임 이벤트 발동
+                }
+
+                system("cls");
+
+                game_background3(B_X * LEVEL, B_Y * LEVEL, item_save);//1234
+
+
+                for (k = 1; k <= LIMIT_ITEM; k++)
+                {
+                    if (item_save[k][0] != 0)
+                    {
+                        gotoxy(item_save[k][0], item_save[k][1]);
+                        printf("▲");
+                    }
+                }
+
+                for (k = 1; k <= SENIOR; k++)
+                {
+                    if (senior_save[k][0] != 0)
+                    {
+                        gotoxy(senior_save[k][0], senior_save[k][1]);
+
+                        if (j_go == 0)
+                            printf("◆");
+                        else
+                            printf("\033[1;32m◆\033[0m");
+
+                    }
+                }
+                gotoxy(x, y);
+                if (is_immune(&immune_start_time, &immune_duration)) {
+                    printf("\033[1;34m♥\033[0m"); // 파란색
+                }
+                else {
+                    printf("\033[1;31m♥\033[0m"); // 빨간색
+                }
+            }
+        }
+
+        if (time(0) >= s_time + 1) // 1초 마다 제한 시간 갱신
+        {
+            gotoxy(B_X * LEVEL + 4, 2);
+            printf("점수 : %5d", score = TIME_LIMIT * (SUSPIC_LIMIT + 1) * 100 - 100 * (TIME_LIMIT - game_time) * (suspic_score + 1)); // 점수 갱신
+            gotoxy(B_X * LEVEL + 4, 4);
+            printf("제한시간 : %d초 / %d초", --game_time, TIME_LIMIT); // 제한시간 갱신
+            how_time = game_time;
+            gotoxy(B_X * LEVEL + 4, 6);
+            printf("\033[1;35m의심도\033[0m : %d  ", suspic_score); // 의심도 갱신
+            gotoxy(B_X * LEVEL + 4, 8);
+            printf("\033[1;33m탈영도구\033[0m : %d / %d", escape_tool, ESCAPE_TOOL); // 탈영도구 수 갱신
+            gotoxy(B_X * LEVEL + 4, 10);
+            printf("남은 이동 횟수 : %3d", move_count); // 이동 횟수 갱신
+            s_time = time(0);
+            gotoxy(x, y);
+            ////////////////////////////////////////1234
+            updateChaserPosition(&chaser1, x, y);
+            updateChaserPosition(&chaser2, x, y);//DP위치 업데이트
+
+            //////////////////////////////////////
+        }
+
+        if (time(0) >= senior_ready_time + 1) // 1초 마다 랜덤으로 선임 움직임 이동하기 0.2초 전 초록색으로 주의를 줌.
+        {
+            do {
+                j = rand() % SENIOR + 1; // 1~SENIOR만큼의 선임 중 하나를 움직임
+                if (senior_save[j][0] != 0) // 삭제된 선임은 제외
+                {
+                    gotoxy(senior_save[j][0], senior_save[j][1]);
+                    printf("\033[1;32m◆\033[0m");
+                    gotoxy(x, y);
+                    j_go += 1;
+                }
+            } while (senior_save[j][0] == 0);
+            senior_ready_time = time(0); // 선임이 하나 움직일 때까지 다른 선임은 이동 X
+            start_clock = clock();
+        }
+
+        if ((double)(clock() - start_clock) / CLOCKS_PER_SEC >= 0.2 && j_go != 0 && senior_save[j][0] != 0) // 0.2초 뒤 랜덤한 방향으로 움직임
+        {
+            do {
+                int a, b;
+                re = 1;
+                a = (rand() % 3 - 1), b = (rand() % 3 - 1); // 그 선임을 x, y 방향으로 랜덤하게 +=1 이동
+
+                for (i = 1; i <= LIMIT_ITEM; i++)
+                {
+                    if ((senior_save[j][0] + a) == item_save[i][0] && (senior_save[j][1] + b) == item_save[i][1]) // 서로 다른 아이템 위치와 중복 X
+                        re = 0; // 중복 시 while문 돌게 만듦
+                }
+                for (i = 1; i <= SENIOR; i++)
+                {
+                    if ((senior_save[j][0] + a) == senior_save[i][0] && (senior_save[j][1] + b) == senior_save[i][1]) // 서로 다른 선임 위치와 중복 X
+                        re = 0; // 중복 시 while문 돌게 만듦
+                    if (!(((senior_save[j][0] + a) <= (B_X * LEVEL - 1) && (senior_save[j][0] + a) > 1) && ((senior_save[j][1] + b) <= (B_Y * LEVEL - 1) && (senior_save[j][1] + b) > 1))) // 벽에 닿으면 안됨
+                        re = 0;
+                }
+
+                if (re != 0)
+                {
+                    gotoxy(senior_save[j][0], senior_save[j][1]);
+                    printf(" ");
+                    gotoxy(senior_save[j][0] + a, senior_save[j][1] + b);
+                    senior_save[j][0] += a;
+                    senior_save[j][1] += b;
+                    printf("◆");
+                }
+                else
+                {
+                    gotoxy(senior_save[j][0], senior_save[j][1]);
+                    printf("◆");
+                }
+
+                j_go = 0;
+                start_clock = clock() + 100;
+            } while (re == 0);
+        }
+        ///////////////////////////////////////////////1234
+        //while (1) {
+        /*s_time = time(0);
+            if (time(0) >= s_time + 1) // 1초마다 추격자 움직임 갱신
+            {
+                gotoxy(chaser1.x, chaser1.y);
+                printf(" ");
+
+                if (chaser1.x < x) chaser1.x++;
+                else if (chaser1.x > x) chaser1.x--;
+
+                if (chaser1.y < y) chaser1.y++;
+                else if (chaser1.y > y) chaser1.y--;
+
+                gotoxy(chaser1.x, chaser1.y);
+                printf("\033[1;32mD\033[0m");
+
+                gotoxy(chaser2.x, chaser2.y);
+                printf(" ");
+
+                if (chaser2.x < x) chaser2.x++;
+                else if (chaser2.x > x) chaser2.x--;
+
+                if (chaser2.y < y) chaser2.y++;
+                else if (chaser2.y > y) chaser2.y--;
+
+                gotoxy(chaser2.x, chaser2.y);
+                printf("\033[1;32mD\033[0m");
+
+                s_time = time(0);
+            }
+            if (x == chaser1.x && y == chaser1.y || x == chaser2.x && y == chaser2.y) {
+                game_over();
+                break;
+            }
+        //}*/
+        
+        ///////////////////////////////////////////////
+        if (game_time == 0)
+        {
+            game_over();
+            break;
+        }
+
+        if (escape_tool >= ESCAPE_TOOL)
+        {
+            dp1(how_time, suspic_score, score);
+            break;
+        }
+    }
+}
